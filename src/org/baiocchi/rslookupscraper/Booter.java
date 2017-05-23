@@ -1,4 +1,4 @@
-package org.baiocchi.accountchecker;
+package org.baiocchi.rslookupscraper;
 
 public class Booter {
 

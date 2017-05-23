@@ -1,4 +1,4 @@
-package org.baiocchi.accountchecker;
+package org.baiocchi.rslookupscraper;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -6,19 +6,22 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.baiocchi.accountchecker.worker.AccountChecker;
-import org.baiocchi.accountchecker.worker.AccountSaver;
+import org.baiocchi.rslookupscraper.worker.AccountChecker;
+import org.baiocchi.rslookupscraper.worker.DataSaver;
 
 public class Engine {
 
 	private static Engine instance;
 	private final LinkedBlockingQueue<String> usernames;
 	private final ArrayList<Thread> workers;
+	private final DataSaver dataSaver;
 	private int workerCount;
 
 	private Engine() {
 		usernames = new LinkedBlockingQueue<String>();
 		workers = new ArrayList<Thread>();
+		dataSaver = new DataSaver(1);
+		workers.add(new Thread(dataSaver));
 	}
 
 	public void start(int workerCount) {
@@ -45,7 +48,6 @@ public class Engine {
 
 	private void createWorkers() {
 		System.out.println("Creating workers...");
-		workers.add(new Thread(new AccountSaver(1)));
 		for (int i = 1; i < (workerCount + 1); i++) {
 			workers.add(new Thread(new AccountChecker(i)));
 		}
@@ -58,6 +60,10 @@ public class Engine {
 			thread.start();
 		}
 		System.out.println("Workers started...");
+	}
+
+	public synchronized void processData(Data data) {
+		dataSaver.processData(data);
 	}
 
 	public LinkedBlockingQueue<String> getUsernamesQueue() {

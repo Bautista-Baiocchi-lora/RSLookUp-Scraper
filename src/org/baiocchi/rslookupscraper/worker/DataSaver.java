@@ -1,4 +1,4 @@
-package org.baiocchi.accountchecker.worker;
+package org.baiocchi.rslookupscraper.worker;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -9,17 +9,17 @@ import java.io.UnsupportedEncodingException;
 import java.io.Writer;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.baiocchi.accountchecker.Account;
-import org.baiocchi.accountchecker.Constants;
+import org.baiocchi.rslookupscraper.Constants;
+import org.baiocchi.rslookupscraper.Data;
 
-public class AccountSaver extends Worker {
+public class DataSaver extends Worker {
 
-	private final LinkedBlockingQueue<Account> accounts;
+	private final LinkedBlockingQueue<Data> data;
 	private Writer writer;
 
-	public AccountSaver(int id) {
+	public DataSaver(int id) {
 		super(id);
-		accounts = new LinkedBlockingQueue<Account>();
+		data = new LinkedBlockingQueue<Data>();
 		try {
 			writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(Constants.SAVE_FILE), "utf-8"));
 		} catch (UnsupportedEncodingException | FileNotFoundException e) {
@@ -27,9 +27,9 @@ public class AccountSaver extends Worker {
 		}
 	}
 
-	public void processAccount(Account account) {
+	public void processData(Data data) {
 		try {
-			accounts.put(account);
+			this.data.put(data);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
@@ -46,7 +46,7 @@ public class AccountSaver extends Worker {
 	@Override
 	public void run() {
 		try {
-			write(accounts.take().toString());
+			write(data.take().toString());
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}

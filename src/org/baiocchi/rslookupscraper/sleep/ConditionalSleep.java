@@ -1,4 +1,4 @@
-package org.baiocchi.accountchecker.sleep;
+package org.baiocchi.rslookupscraper.sleep;
 
 import java.util.concurrent.Callable;
 
@@ -13,7 +13,6 @@ public abstract class ConditionalSleep {
 				Thread.sleep(timeout);
 			}
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

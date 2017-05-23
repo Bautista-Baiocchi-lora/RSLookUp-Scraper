@@ -1,6 +1,6 @@
-package org.baiocchi.accountchecker;
+package org.baiocchi.rslookupscraper;
 
-public class Account {
+public class Data {
 
 	private final String website;
 	private final String username;
@@ -8,7 +8,7 @@ public class Account {
 	private final String email;
 	private final String IP;
 
-	public Account(String website, String username, String email, String password, String IP) {
+	public Data(String website, String username, String email, String password, String IP) {
 		this.website = website;
 		this.username = username;
 		this.email = email;
