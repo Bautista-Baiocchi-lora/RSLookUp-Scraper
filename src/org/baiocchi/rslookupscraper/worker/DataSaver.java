@@ -1,43 +1,40 @@
 package org.baiocchi.rslookupscraper.worker;
 
 import java.io.BufferedWriter;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.UnsupportedEncodingException;
-import java.io.Writer;
+import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.baiocchi.rslookupscraper.Constants;
-import org.baiocchi.rslookupscraper.Data;
+import org.baiocchi.rslookupscraper.Engine;
+import org.baiocchi.rslookupscraper.util.Constants;
+import org.baiocchi.rslookupscraper.util.Data;
 
 public class DataSaver extends Worker {
 
-	private final LinkedBlockingQueue<Data> data;
-	private Writer writer;
+	private LinkedBlockingQueue<Data> data;
+	private boolean running;
 
 	public DataSaver(int id) {
 		super(id);
 		data = new LinkedBlockingQueue<Data>();
-		try {
-			writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(Constants.SAVE_FILE), "utf-8"));
-		} catch (UnsupportedEncodingException | FileNotFoundException e) {
-			e.printStackTrace();
-		}
+		running = true;
 	}
 
-	public void processData(Data data) {
+	public void processData(ArrayList<Data> data) {
 		try {
-			this.data.put(data);
+			for (Data d : data) {
+				this.data.put(d);
+			}
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
 	}
 
 	private void write(String line) {
-		try {
-			writer.write(line + "\n");
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.SAVE_FILE, true));) {
+			writer.write(line);
+			writer.newLine();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -45,12 +42,17 @@ public class DataSaver extends Worker {
 
 	@Override
 	public void run() {
-		try {
-			write(data.take().toString());
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		while (running) {
+			Data saveData = null;
+			try {
+				saveData = data.take();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			write(saveData.toString());
+			Engine.getInstance().incrementAccountsChecked();
+			log("Saved " + saveData.getAccount().getUsername() + " data to file!");
 		}
-		run();
 	}
 
 }

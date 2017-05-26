@@ -1,14 +1,16 @@
 package org.baiocchi.rslookupscraper.worker;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.concurrent.Callable;
+import java.util.List;
 import java.util.logging.Level;
 
 import org.apache.commons.logging.LogFactory;
-import org.baiocchi.rslookupscraper.Constants;
-import org.baiocchi.rslookupscraper.Data;
-import org.baiocchi.rslookupscraper.sleep.ConditionalSleep;
+import org.baiocchi.rslookupscraper.Engine;
+import org.baiocchi.rslookupscraper.util.Account;
+import org.baiocchi.rslookupscraper.util.Constants;
+import org.baiocchi.rslookupscraper.util.Data;
 
 import com.gargoylesoftware.htmlunit.AjaxController;
 import com.gargoylesoftware.htmlunit.BrowserVersion;
@@ -22,116 +24,172 @@ import com.gargoylesoftware.htmlunit.html.HtmlDivision;
 import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
+import com.gargoylesoftware.htmlunit.html.HtmlSpan;
 import com.gargoylesoftware.htmlunit.html.HtmlTable;
 import com.gargoylesoftware.htmlunit.html.HtmlTableCell;
+import com.gargoylesoftware.htmlunit.html.HtmlTableRow;
 import com.gargoylesoftware.htmlunit.html.HtmlTextInput;
+import com.gargoylesoftware.htmlunit.javascript.background.JavaScriptJobManager;
 import com.gargoylesoftware.htmlunit.util.Cookie;
 
 public class AccountChecker extends Worker {
-	private final WebClient client;
+	private WebClient client;
 	private HtmlPage currentPage;
+	private boolean handlingJavascript = false;
+	private Account account = null;
+	private boolean running;
+	private int noResultCount;
 
 	public AccountChecker(int id) {
 		super(id);
-		this.client = new WebClient(BrowserVersion.BEST_SUPPORTED);
-		setWebClientSettings(client);
+		this.client = getNewClient();
 		try {
 			currentPage = client.getPage(Constants.SEARCH_URL);
 		} catch (FailingHttpStatusCodeException | IOException e) {
 			e.printStackTrace();
 		}
+		running = true;
 	}
 
 	@Override
 	public void run() {
-		switch (currentPage.getUrl().toExternalForm()) {
-		case Constants.LOGIN_URL:
-			log("Handling login...");
-			final HtmlForm form = currentPage.getFirstByXPath("//form[@action='https://rslookup.com/login']");
-			final HtmlTextInput usernameField = form.getInputByName("username");
-			usernameField.setValueAttribute(Constants.USERNAME);
-			final HtmlInput passwordField = form.getInputByName("password");
-			passwordField.setValueAttribute(Constants.PASSWORD);
-			final HtmlButton loginButton = (HtmlButton) form.getElementsByTagName("button").get(0);
-			try {
-				currentPage = loginButton.click();
-			} catch (IOException e1) {
-				e1.printStackTrace();
-			}
-			ConditionalSleep.sleep(new Callable<Boolean>() {
-
-				@Override
-				public Boolean call() throws Exception {
-					return currentPage.getTitleText().toLowerCase().contains("search");
+		while (running) {
+			switch (currentPage.getUrl().toExternalForm()) {
+			case Constants.LOGIN_URL:
+				log("Handling login...");
+				final HtmlForm form = currentPage.getFirstByXPath("//form[@action='https://rslookup.com/login']");
+				if (form != null) {
+					final HtmlTextInput usernameField = form.getInputByName("username");
+					usernameField.setValueAttribute(Constants.USERNAME);
+					final HtmlInput passwordField = form.getInputByName("password");
+					passwordField.setValueAttribute(Constants.PASSWORD);
+					final HtmlButton loginButton = (HtmlButton) form.getElementsByTagName("button").get(0);
+					if (loginButton != null && loginButton.isDisplayed()) {
+						try {
+							currentPage = loginButton.click();
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
+						waitForJavascriptToExecute();
+					}
+					log("Login handled!");
 				}
-
-			}, 50, 20);
-			log("Login handled...");
-			break;
-		case Constants.TERMS_URL:
-			log("Handling terms...");
-			break;
-		case Constants.SEARCH_URL:
-			final HtmlTextInput searchField = currentPage.getElementByName("query");
-			final HtmlButton searchButton = (HtmlButton) currentPage.getElementById("search");
-			final HtmlDivision resultsDivision = (HtmlDivision) currentPage.getFirstByXPath("//div[@id='results']");
-			String username = "pablo4";
-			/*
-			 * try { username = Engine.getInstance().getUsernamesQueue().take();
-			 * } catch (InterruptedException e1) { e1.printStackTrace(); }
-			 */
-			log("Searching: " + username);
-			searchField.setValueAttribute(username);
-			try {
-				currentPage = searchButton.click();
-			} catch (IOException e1) {
-				e1.printStackTrace();
-			}
-			ConditionalSleep.sleep(new Callable<Boolean>() {
-
-				@Override
-				public Boolean call() throws Exception {
-					return resultsDivision.getTextContent().length() > 5;
+				break;
+			case Constants.SEARCH_URL:
+				if (!handlingJavascript) {
+					final HtmlTextInput searchField = currentPage.getElementByName("query");
+					final HtmlButton searchButton = (HtmlButton) currentPage.getElementById("search");
+					try {
+						account = Engine.getInstance().getAccounts().take();
+					} catch (InterruptedException e1) {
+						e1.printStackTrace();
+					}
+					if (searchField != null && searchField.isDisplayed()) {
+						log("Searching: " + account.getUsername() + "...");
+						searchField.setValueAttribute(account.getUsername());
+						try {
+							currentPage = searchButton.click();
+						} catch (IOException e1) {
+							e1.printStackTrace();
+						}
+						waitForJavascriptToExecute();
+						handlingJavascript = true;
+					}
 				}
-
-			}, 50, 50);
-			if (resultsDivision.getTextContent().toLowerCase().contains("there was no results for")) {
-				log("No results for: " + username);
-			} else {
-				log("Scraping results for: " + username + "...");
-				for (int cycles = 1; cycles < 3; cycles++) {
-					HtmlTable resultsTable = currentPage.getFirstByXPath("//table[@class='table table-bordered']");
-					ScriptResult scriptResult = null;
-					for (int index = 1; index < resultsTable.getRowCount(); index++) {
-						Data data = null;
-						for (final HtmlTableCell cell : resultsTable.getRow(index).getCells()) {
-							if (cycles == 1) {
-								if (cell.asText().toLowerCase().contains("search in hash")
-										|| cell.asText().toLowerCase().contains("plain password")) {
-									scriptResult = currentPage.executeJavaScript(cell.getOnClickAttribute());
+				final HtmlDivision resultsDivision = (HtmlDivision) currentPage.getFirstByXPath("//div[@id='results']");
+				if (resultsDivision != null && resultsDivision.isDisplayed()) {
+					if (resultsDivision.asText().toLowerCase().contains("there was no results for")
+							|| resultsDivision.asText().toLowerCase().contains("enter a minimum")) {
+						log("No results for: " + account.getUsername());
+						handlingJavascript = false;
+						noResultCount++;
+						if (noResultCount >= 8) {
+							log("Client may have nulled. Restarting Client...");
+							client = getNewClient();
+							noResultCount = 0;
+						}
+						continue;
+					} else {
+						if (!resultsDivision.asText().toLowerCase().contains("search in hash")) {
+							log("Scraping results for: " + account.getUsername());
+							final HtmlTable results = resultsDivision.getFirstByXPath("//table");
+							if (results != null && results.isDisplayed() && results.getRowCount() > 0) {
+								final ArrayList<Data> dataList = new ArrayList<Data>();
+								for (final HtmlTableRow row : results.getRows()) {
+									if (row.getIndex() > 1) {
+										final Data data = new Data(account);
+										for (final HtmlTableCell cell : row.getCells()) {
+											switch (cell.getIndex()) {
+											case 1:
+												data.setDatabase(cell.asText());
+												break;
+											case 5:
+												data.setEmail(cell.asText());
+												break;
+											case 7:
+												data.setPassword(
+														cell.asText().replaceAll("Plain Password - Reveal", ""));
+												break;
+											case 9:
+												data.setIP(cell.asText());
+												break;
+											}
+										}
+										dataList.add(data);
+									}
 								}
+								Engine.getInstance().processData(dataList);
+								handlingJavascript = false;
+								log("Results for " + account.getUsername() + " scraped!");
 							} else {
-								log(cell.asText());
+								log("Table is bugged. Restarting Client...");
+								client = getNewClient();
+								break;
+							}
+						} else {
+							final List<HtmlSpan> greenTexts = resultsDivision
+									.getByXPath("//table[@class='table table-bordered']/tbody/tr/td/span");
+							if (greenTexts != null && greenTexts.size() > 0) {
+								log("Handling javascript...");
+								for (final HtmlSpan greenText : greenTexts) {
+									if (greenText.asText().equalsIgnoreCase("Search in hash DB")) {
+										ScriptResult result = currentPage
+												.executeJavaScript(greenText.getOnClickAttribute());
+										currentPage = (HtmlPage) result.getNewPage();
+									}
+								}
+								waitForJavascriptToExecute();
 							}
 						}
-
-					}
-					if (cycles == 1) {
-						currentPage = (HtmlPage) scriptResult.getNewPage();
 					}
 				}
-				log("Results scraped.");
+				break;
+			default:
+				try {
+					currentPage = client.getPage(Constants.SEARCH_URL);
+				} catch (FailingHttpStatusCodeException | IOException e) {
+					e.printStackTrace();
+				}
+				break;
 			}
-			break;
-		default:
+		}
+	}
+
+	private void waitForJavascriptToExecute() {
+		JavaScriptJobManager manager = currentPage.getEnclosingWindow().getJobManager();
+		while (manager.getJobCount() > 0) {
 			try {
-				currentPage = client.getPage(Constants.SEARCH_URL);
-			} catch (FailingHttpStatusCodeException | IOException e) {
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			break;
 		}
-		run();
+	}
+
+	private WebClient getNewClient() {
+		WebClient client = new WebClient(BrowserVersion.CHROME);
+		setWebClientSettings(client);
+		return client;
 	}
 
 	private void setWebClientSettings(WebClient webClient) {
@@ -144,8 +202,10 @@ public class AccountChecker extends Worker {
 		cookieManager.addCookie(cookie);
 		webClient.setAjaxController(new NicelyResynchronizingAjaxController());
 		webClient.setAjaxController(new AjaxController());
-		webClient.waitForBackgroundJavaScript(2000);
-		webClient.waitForBackgroundJavaScriptStartingBefore(2000);
+		webClient.waitForBackgroundJavaScript(1000);
+		webClient.getOptions().setGeolocationEnabled(false);
+		webClient.getOptions().setRedirectEnabled(true);
+		webClient.getOptions().setAppletEnabled(false);
 		webClient.getOptions().setPrintContentOnFailingStatusCode(false);
 		webClient.getOptions().setCssEnabled(false);
 		webClient.getOptions().setThrowExceptionOnFailingStatusCode(false);
@@ -153,6 +213,8 @@ public class AccountChecker extends Worker {
 		webClient.getOptions().setJavaScriptEnabled(true);
 		webClient.getOptions().setDownloadImages(false);
 		webClient.getCache().clear();
+		webClient.setJavaScriptTimeout(30000);
+		webClient.getOptions().setPopupBlockerEnabled(true);
 		webClient.getOptions().isDoNotTrackEnabled();
 		webClient.getOptions().setUseInsecureSSL(true);
 		LogFactory.getFactory().setAttribute("org.apache.commons.logging.Log",
