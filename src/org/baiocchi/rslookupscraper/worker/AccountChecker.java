@@ -20,7 +20,6 @@ import com.gargoylesoftware.htmlunit.NicelyResynchronizingAjaxController;
 import com.gargoylesoftware.htmlunit.ScriptResult;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.html.HtmlButton;
-import com.gargoylesoftware.htmlunit.html.HtmlDivision;
 import com.gargoylesoftware.htmlunit.html.HtmlForm;
 import com.gargoylesoftware.htmlunit.html.HtmlInput;
 import com.gargoylesoftware.htmlunit.html.HtmlPage;
@@ -38,16 +37,12 @@ public class AccountChecker extends Worker {
 	private boolean handlingJavascript = false;
 	private Account account = null;
 	private boolean running;
-	private int noResultCount;
+	private int noResultCount = 0;
+	private int emptyRowCount = 0;
 
 	public AccountChecker(int id) {
 		super(id);
 		this.client = getNewClient();
-		try {
-			currentPage = client.getPage(Constants.SEARCH_URL);
-		} catch (FailingHttpStatusCodeException | IOException e) {
-			e.printStackTrace();
-		}
 		running = true;
 	}
 
@@ -96,10 +91,9 @@ public class AccountChecker extends Worker {
 						handlingJavascript = true;
 					}
 				}
-				final HtmlDivision resultsDivision = (HtmlDivision) currentPage.getFirstByXPath("//div[@id='results']");
-				if (resultsDivision != null && resultsDivision.isDisplayed()) {
-					if (resultsDivision.asText().toLowerCase().contains("there was no results for")
-							|| resultsDivision.asText().toLowerCase().contains("enter a minimum")) {
+				if (currentPage != null) {
+					if (currentPage.asText().toLowerCase().contains("there was no results for")
+							|| currentPage.asText().toLowerCase().contains("enter a minimum")) {
 						log("No results for: " + account.getUsername());
 						handlingJavascript = false;
 						noResultCount++;
@@ -110,33 +104,59 @@ public class AccountChecker extends Worker {
 						}
 						continue;
 					} else {
-						if (!resultsDivision.asText().toLowerCase().contains("search in hash")) {
+						if (!currentPage.asText().toLowerCase().contains("search in hash")) {
 							log("Scraping results for: " + account.getUsername());
-							final HtmlTable results = resultsDivision.getFirstByXPath("//table");
-							if (results != null && results.isDisplayed() && results.getRowCount() > 0) {
+							final HtmlTable results = currentPage.getFirstByXPath("//table[1]");
+							if (results != null && results.isDisplayed() && results.getRowCount() > 1) {
 								final ArrayList<Data> dataList = new ArrayList<Data>();
 								for (final HtmlTableRow row : results.getRows()) {
+									if (emptyRowCount >= 6) {
+										break;
+									}
 									if (row.getIndex() > 1) {
-										final Data data = new Data(account);
+										final Data data = new Data(account, super.getID());
+										boolean emptyRow = true;
 										for (final HtmlTableCell cell : row.getCells()) {
 											switch (cell.getIndex()) {
 											case 1:
-												data.setDatabase(cell.asText());
+												if (cell.asText().length() > 0) {
+													data.setDatabase(cell.asText());
+													emptyRow = false;
+												}
 												break;
 											case 5:
-												data.setEmail(cell.asText());
+												if (cell.asText().length() > 0) {
+													data.setEmail(cell.asText());
+													emptyRow = false;
+												}
 												break;
 											case 7:
-												data.setPassword(
-														cell.asText().replaceAll("Plain Password - Reveal", ""));
+												if (cell.asText().length() > 0) {
+													data.setPassword(
+															cell.asText().replaceAll("Plain Password - Reveal", ""));
+													emptyRow = false;
+												}
 												break;
 											case 9:
-												data.setIP(cell.asText());
+												if (cell.asText().length() > 0) {
+													data.setIP(cell.asText());
+													emptyRow = false;
+												}
 												break;
 											}
 										}
-										dataList.add(data);
+										if (emptyRow) {
+											emptyRowCount++;
+										} else {
+											dataList.add(data);
+										}
 									}
+								}
+								if (emptyRowCount >= 6) {
+									log("Empty row failsafe triggered. Restarting Client...");
+									emptyRowCount = 0;
+									client = getNewClient();
+									break;
 								}
 								Engine.getInstance().processData(dataList);
 								handlingJavascript = false;
@@ -147,7 +167,7 @@ public class AccountChecker extends Worker {
 								break;
 							}
 						} else {
-							final List<HtmlSpan> greenTexts = resultsDivision
+							final List<HtmlSpan> greenTexts = currentPage
 									.getByXPath("//table[@class='table table-bordered']/tbody/tr/td/span");
 							if (greenTexts != null && greenTexts.size() > 0) {
 								log("Handling javascript...");
@@ -189,6 +209,11 @@ public class AccountChecker extends Worker {
 	private WebClient getNewClient() {
 		WebClient client = new WebClient(BrowserVersion.CHROME);
 		setWebClientSettings(client);
+		try {
+			currentPage = client.getPage(Constants.SEARCH_URL);
+		} catch (FailingHttpStatusCodeException | IOException e) {
+			e.printStackTrace();
+		}
 		return client;
 	}
 

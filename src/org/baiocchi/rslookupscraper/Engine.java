@@ -7,8 +7,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import javax.swing.JFileChooser;
+import javax.swing.JPanel;
+
 import org.baiocchi.rslookupscraper.util.Account;
-import org.baiocchi.rslookupscraper.util.Constants;
 import org.baiocchi.rslookupscraper.util.Data;
 import org.baiocchi.rslookupscraper.worker.AccountChecker;
 import org.baiocchi.rslookupscraper.worker.DataSaver;
@@ -20,18 +22,25 @@ public class Engine {
 	private final ArrayList<Thread> workers;
 	private final DataSaver dataSaver;
 	private String serverName;
+	private String nameToStartAt;
 	private int workerCount = 1;
 	private double accountCount = 0;
-	private volatile double accountsChecked = 0;
+	private double accountsChecked = 0;
 
 	private Engine() {
 		accounts = new LinkedBlockingQueue<Account>();
 		workers = new ArrayList<Thread>();
 		Console console = System.console();
-		this.serverName = "alora";
 		this.serverName = console.readLine("Server name?");
 		this.workerCount = Integer.parseInt(console.readLine("How many worker threads?"));
-		dataSaver = new DataSaver(1);
+		nameToStartAt = console
+				.readLine("What username would you like to start scraping from? (Leave blank to start from the top)");
+		JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setDialogTitle("Select directory to save results to!");
+		fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		fileChooser.setAcceptAllFileFilterUsed(false);
+		fileChooser.showOpenDialog(new JPanel());
+		dataSaver = new DataSaver(1, fileChooser.getSelectedFile());
 		workers.add(new Thread(dataSaver));
 	}
 
@@ -43,12 +52,30 @@ public class Engine {
 
 	private void loadAccounts() {
 		System.out.println("Loading accounts...");
-		try (BufferedReader reader = new BufferedReader(new FileReader(Constants.USERNAME_FILE))) {
+		JFileChooser fileChooser = new JFileChooser();
+		fileChooser.setDialogTitle("Select username file!");
+		fileChooser.setAcceptAllFileFilterUsed(false);
+		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.showOpenDialog(new JPanel());
+		boolean noLimits = false;
+		if (nameToStartAt.equalsIgnoreCase("")) {
+			noLimits = true;
+		}
+		try (BufferedReader reader = new BufferedReader(new FileReader(fileChooser.getSelectedFile()))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				String[] indexs = line.split(",");
-				accounts.add(new Account(Integer.parseInt(indexs[0]), indexs[1], (indexs.length > 2 ? indexs[2] : ""),
-						serverName));
+				if (!noLimits) {
+					if (nameToStartAt.equalsIgnoreCase(indexs[1])) {
+						accounts.add(new Account(Integer.parseInt(indexs[0]), indexs[1],
+								(indexs.length > 2 ? indexs[2] : ""), serverName));
+						noLimits = true;
+					}
+				} else {
+					accounts.add(new Account(Integer.parseInt(indexs[0]), indexs[1],
+							(indexs.length > 2 ? indexs[2] : ""), serverName));
+
+				}
 			}
 		} catch (IOException e) {
 			System.out.println("Failed to load accounts");
@@ -87,6 +114,7 @@ public class Engine {
 
 	public synchronized void processData(ArrayList<Data> data) {
 		dataSaver.processData(data);
+		accountsChecked++;
 		System.out.println(getProgressString());
 	}
 
@@ -102,15 +130,11 @@ public class Engine {
 				builder.append("_");
 			}
 		}
-		builder.append("](" + percentDone + "%)");
+		builder.append("](" + (percentDone * 100) + "%)");
 		return builder.toString();
 	}
 
-	public void incrementAccountsChecked() {
-		accountsChecked++;
-	}
-
-	public LinkedBlockingQueue<Account> getAccounts() {
+	public synchronized LinkedBlockingQueue<Account> getAccounts() {
 		return accounts;
 	}
 

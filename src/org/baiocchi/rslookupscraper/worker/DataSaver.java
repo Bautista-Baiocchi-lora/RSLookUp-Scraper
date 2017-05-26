@@ -1,22 +1,23 @@
 package org.baiocchi.rslookupscraper.worker;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.baiocchi.rslookupscraper.Engine;
-import org.baiocchi.rslookupscraper.util.Constants;
 import org.baiocchi.rslookupscraper.util.Data;
 
 public class DataSaver extends Worker {
 
 	private LinkedBlockingQueue<Data> data;
+	private final String saveDirectory;
 	private boolean running;
 
-	public DataSaver(int id) {
+	public DataSaver(int id, File file) {
 		super(id);
+		this.saveDirectory = file.getAbsolutePath();
 		data = new LinkedBlockingQueue<Data>();
 		running = true;
 	}
@@ -32,7 +33,7 @@ public class DataSaver extends Worker {
 	}
 
 	private void write(String line) {
-		try (BufferedWriter writer = new BufferedWriter(new FileWriter(Constants.SAVE_FILE, true));) {
+		try (BufferedWriter writer = new BufferedWriter(new FileWriter(saveDirectory + "/RSLookUp-Dump.csv", true));) {
 			writer.write(line);
 			writer.newLine();
 		} catch (IOException e) {
@@ -50,7 +51,6 @@ public class DataSaver extends Worker {
 				e.printStackTrace();
 			}
 			write(saveData.toString());
-			Engine.getInstance().incrementAccountsChecked();
 			log("Saved " + saveData.getAccount().getUsername() + " data to file!");
 		}
 	}

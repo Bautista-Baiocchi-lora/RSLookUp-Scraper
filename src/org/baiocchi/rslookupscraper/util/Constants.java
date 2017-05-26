@@ -1,8 +1,7 @@
-package org.baiocchi.rslookupscraper;
+package org.baiocchi.rslookupscraper.util;
 
 public class Constants {
 
-	public final static String USERNAME_FILE = "/home/bautista/Desktop/RSPS Account Hacker/High Scores/aloraHighscores.csv";
 	public final static String SAVE_FILE = "/home/bautista/Desktop/RSPS Account Hacker/RSLookUp-Dump.csv";
 	public final static String LOGIN_URL = "https://rslookup.com/login";
 	public final static String SEARCH_URL = "https://rslookup.com/search";
