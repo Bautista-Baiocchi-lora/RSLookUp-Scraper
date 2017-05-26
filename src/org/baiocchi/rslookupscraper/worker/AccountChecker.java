@@ -39,17 +39,20 @@ public class AccountChecker extends Worker {
 	private boolean running;
 	private int noResultCount = 0;
 	private int emptyRowCount = 0;
+	private int duplicateDataCount = 0;
+	private ArrayList<Data> previousData;
 
 	public AccountChecker(int id) {
 		super(id);
 		this.client = getNewClient();
+		previousData = new ArrayList<Data>();
 		running = true;
 	}
 
 	@Override
 	public void run() {
 		while (running) {
-			switch (currentPage.getUrl().toExternalForm()) {
+			switchLoop: switch (currentPage.getUrl().toExternalForm()) {
 			case Constants.LOGIN_URL:
 				log("Handling login...");
 				final HtmlForm form = currentPage.getFirstByXPath("//form[@action='https://rslookup.com/login']");
@@ -114,7 +117,7 @@ public class AccountChecker extends Worker {
 										break;
 									}
 									if (row.getIndex() > 1) {
-										final Data data = new Data(account, super.getID());
+										final Data data = new Data(account);
 										boolean emptyRow = true;
 										for (final HtmlTableCell cell : row.getCells()) {
 											switch (cell.getIndex()) {
@@ -158,6 +161,23 @@ public class AccountChecker extends Worker {
 									client = getNewClient();
 									break;
 								}
+								if (previousData != null) {
+									for (Data d : dataList) {
+										for (Data s : previousData) {
+											if (d.getEmail().equalsIgnoreCase(s.getEmail())) {
+												duplicateDataCount++;
+												break;
+											}
+										}
+									}
+								}
+								if (duplicateDataCount >= 2) {
+									duplicateDataCount = 0;
+									log("Duplicate data failsafe triggered. Restarting Client...");
+									client = getNewClient();
+									break;
+								}
+								previousData = dataList;
 								Engine.getInstance().processData(dataList);
 								handlingJavascript = false;
 								log("Results for " + account.getUsername() + " scraped!");

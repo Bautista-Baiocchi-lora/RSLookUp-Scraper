@@ -7,15 +7,9 @@ public class Data {
 	private final Account account;
 	private String email = "";
 	private String IP = "";
-	private int threadId;
 
-	public Data(Account account, int ThreadId) {
+	public Data(Account account) {
 		this.account = account;
-		this.threadId = threadId;
-	}
-
-	public int getThreadId() {
-		return threadId;
 	}
 
 	public String getDatabase() {
@@ -56,7 +50,7 @@ public class Data {
 
 	@Override
 	public String toString() {
-		return account.toString() + "," + database + "," + email + "," + password + "," + IP + "," + threadId;
+		return account.toString() + "," + database + "," + email + "," + password + "," + IP;
 	}
 
 }
