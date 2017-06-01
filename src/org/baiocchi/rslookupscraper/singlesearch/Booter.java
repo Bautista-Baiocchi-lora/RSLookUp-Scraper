@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper;
+package org.baiocchi.rslookupscraper.singlesearch;
 
 public class Booter {
 

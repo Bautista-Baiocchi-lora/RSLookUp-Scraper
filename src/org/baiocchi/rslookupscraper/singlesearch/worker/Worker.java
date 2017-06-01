@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.worker;
+package org.baiocchi.rslookupscraper.singlesearch.worker;
 
 public abstract class Worker implements Runnable {
 	private final int id;

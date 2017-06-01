@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.util;
+package org.baiocchi.rslookupscraper.singlesearch.util;
 
 public class Data {
 

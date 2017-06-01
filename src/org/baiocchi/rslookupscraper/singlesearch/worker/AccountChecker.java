@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.worker;
+package org.baiocchi.rslookupscraper.singlesearch.worker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.logging.Level;
 
 import org.apache.commons.logging.LogFactory;
-import org.baiocchi.rslookupscraper.Engine;
-import org.baiocchi.rslookupscraper.util.Account;
-import org.baiocchi.rslookupscraper.util.Constants;
-import org.baiocchi.rslookupscraper.util.Data;
+import org.baiocchi.rslookupscraper.singlesearch.Engine;
+import org.baiocchi.rslookupscraper.singlesearch.util.Account;
+import org.baiocchi.rslookupscraper.singlesearch.util.Constants;
+import org.baiocchi.rslookupscraper.singlesearch.util.Data;
 
 import com.gargoylesoftware.htmlunit.AjaxController;
 import com.gargoylesoftware.htmlunit.BrowserVersion;
@@ -39,20 +39,17 @@ public class AccountChecker extends Worker {
 	private boolean running;
 	private int noResultCount = 0;
 	private int emptyRowCount = 0;
-	private int duplicateDataCount = 0;
-	private ArrayList<Data> previousData;
 
 	public AccountChecker(int id) {
 		super(id);
-		this.client = getNewClient();
-		previousData = new ArrayList<Data>();
+		client = getNewClient();
 		running = true;
 	}
 
 	@Override
 	public void run() {
 		while (running) {
-			switchLoop: switch (currentPage.getUrl().toExternalForm()) {
+			switch (currentPage.getUrl().toExternalForm()) {
 			case Constants.LOGIN_URL:
 				log("Handling login...");
 				final HtmlForm form = currentPage.getFirstByXPath("//form[@action='https://rslookup.com/login']");
@@ -67,10 +64,13 @@ public class AccountChecker extends Worker {
 							currentPage = loginButton.click();
 						} catch (IOException e1) {
 							e1.printStackTrace();
+							log("Failed to handle login!");
 						}
 						waitForJavascriptToExecute();
+						log("Login handled!");
+						break;
 					}
-					log("Login handled!");
+					log("Failed to handle login!");
 				}
 				break;
 			case Constants.SEARCH_URL:
@@ -89,6 +89,8 @@ public class AccountChecker extends Worker {
 							currentPage = searchButton.click();
 						} catch (IOException e1) {
 							e1.printStackTrace();
+							log("Failed to search: " + account.getUsername());
+							break;
 						}
 						waitForJavascriptToExecute();
 						handlingJavascript = true;
@@ -161,26 +163,11 @@ public class AccountChecker extends Worker {
 									client = getNewClient();
 									break;
 								}
-								if (previousData != null) {
-									for (Data d : dataList) {
-										for (Data s : previousData) {
-											if (d.getEmail().equalsIgnoreCase(s.getEmail())) {
-												duplicateDataCount++;
-												break;
-											}
-										}
-									}
+								if (dataList != null) {
+									Engine.getInstance().processData(dataList);
+									handlingJavascript = false;
+									log("Results for " + account.getUsername() + " scraped!");
 								}
-								if (duplicateDataCount >= 2) {
-									duplicateDataCount = 0;
-									log("Duplicate data failsafe triggered. Restarting Client...");
-									client = getNewClient();
-									break;
-								}
-								previousData = dataList;
-								Engine.getInstance().processData(dataList);
-								handlingJavascript = false;
-								log("Results for " + account.getUsername() + " scraped!");
 							} else {
 								log("Table is bugged. Restarting Client...");
 								client = getNewClient();
@@ -206,6 +193,7 @@ public class AccountChecker extends Worker {
 				break;
 			default:
 				try {
+					log("Lost! Going back to search page...");
 					currentPage = client.getPage(Constants.SEARCH_URL);
 				} catch (FailingHttpStatusCodeException | IOException e) {
 					e.printStackTrace();
@@ -219,7 +207,7 @@ public class AccountChecker extends Worker {
 		JavaScriptJobManager manager = currentPage.getEnclosingWindow().getJobManager();
 		while (manager.getJobCount() > 0) {
 			try {
-				Thread.sleep(200);
+				Thread.sleep(300);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
