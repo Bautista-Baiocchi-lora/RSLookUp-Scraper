@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.singlesearch.worker;
+package org.baiocchi.single.rslookupscraper.worker;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import org.baiocchi.rslookupscraper.singlesearch.util.Data;
+import org.baiocchi.single.rslookupscraper.util.Data;
 
 public class DataSaver extends Worker {
 

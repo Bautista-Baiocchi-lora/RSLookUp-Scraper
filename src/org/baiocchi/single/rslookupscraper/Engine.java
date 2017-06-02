@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.singlesearch;
+package org.baiocchi.single.rslookupscraper;
 
 import java.io.BufferedReader;
 import java.io.Console;
@@ -10,10 +10,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 import javax.swing.JFileChooser;
 import javax.swing.JPanel;
 
-import org.baiocchi.rslookupscraper.singlesearch.util.Account;
-import org.baiocchi.rslookupscraper.singlesearch.util.Data;
-import org.baiocchi.rslookupscraper.singlesearch.worker.AccountChecker;
-import org.baiocchi.rslookupscraper.singlesearch.worker.DataSaver;
+import org.baiocchi.single.rslookupscraper.util.Account;
+import org.baiocchi.single.rslookupscraper.util.Data;
+import org.baiocchi.single.rslookupscraper.worker.AccountChecker;
+import org.baiocchi.single.rslookupscraper.worker.DataSaver;
 
 public class Engine {
 

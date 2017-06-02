@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.singlesearch.util;
+package org.baiocchi.single.rslookupscraper.util;
 
 public class Constants {
 

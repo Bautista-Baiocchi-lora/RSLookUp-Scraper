@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.singlesearch.worker;
+package org.baiocchi.single.rslookupscraper.worker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -7,10 +7,10 @@ import java.util.List;
 import java.util.logging.Level;
 
 import org.apache.commons.logging.LogFactory;
-import org.baiocchi.rslookupscraper.singlesearch.Engine;
-import org.baiocchi.rslookupscraper.singlesearch.util.Account;
-import org.baiocchi.rslookupscraper.singlesearch.util.Constants;
-import org.baiocchi.rslookupscraper.singlesearch.util.Data;
+import org.baiocchi.single.rslookupscraper.Engine;
+import org.baiocchi.single.rslookupscraper.util.Account;
+import org.baiocchi.single.rslookupscraper.util.Constants;
+import org.baiocchi.single.rslookupscraper.util.Data;
 
 import com.gargoylesoftware.htmlunit.AjaxController;
 import com.gargoylesoftware.htmlunit.BrowserVersion;
@@ -105,7 +105,6 @@ public class AccountChecker extends Worker {
 						if (noResultCount >= 8) {
 							log("Client may have nulled. Restarting Client...");
 							client = getNewClient();
-							noResultCount = 0;
 						}
 						continue;
 					} else {
@@ -159,7 +158,6 @@ public class AccountChecker extends Worker {
 								}
 								if (emptyRowCount >= 6) {
 									log("Empty row failsafe triggered. Restarting Client...");
-									emptyRowCount = 0;
 									client = getNewClient();
 									break;
 								}
@@ -215,6 +213,9 @@ public class AccountChecker extends Worker {
 	}
 
 	private WebClient getNewClient() {
+		noResultCount = 0;
+		emptyRowCount = 0;
+		handlingJavascript = false;
 		WebClient client = new WebClient(BrowserVersion.CHROME);
 		setWebClientSettings(client);
 		try {

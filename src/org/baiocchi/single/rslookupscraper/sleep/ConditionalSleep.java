@@ -1,4 +1,4 @@
-package org.baiocchi.rslookupscraper.singlesearch.sleep;
+package org.baiocchi.single.rslookupscraper.sleep;
 
 import java.util.concurrent.Callable;
 
